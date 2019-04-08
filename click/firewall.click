@@ -18,7 +18,7 @@ AddressInfo(sfc    10.0.3.128    10.0.3.0/24    FA:16:3E:73:B2:BC,
 src :: FromDevice($IFFRW);
 
 //outcoming packets
-sink :: Queue(1024) -> ToDevice($IFFRW);
+sink :: ARPPrint() -> Queue(1024) -> ToDevice($IFFRW);
 
 // click router packet classifier
 c :: Classifier(
@@ -55,8 +55,10 @@ c[1] -> [1]arpq;
 c[3] -> Discard;
 
 // Firewall application accepting only http/https requests to floatingip.
-webFilter :: IPFilter(allow dst floatingip && dst port 80 && dst port 443,
-                        drop all)
+webFilter :: IPFilter(allow icmp,
+                      //allow dst floatingip && dst port 80 && dst port 443,
+                      allow dst port 80 || dst port 443,
+                      drop all)
 
 // Firewall application accepting only http responses (through dynamic ports)
 //to entire net0 from natlb.
@@ -79,8 +81,8 @@ webFilter :: IPFilter(allow dst floatingip && dst port 80 && dst port 443,
 //IP PACKETS
 
 //checkpaint from classifier
-checkchain :: CheckPaint(1,CHAIN);
-checksfc :: CheckPaint(0,STEP);
+//checkchain :: CheckPaint(1,CHAIN);
+//checksfc :: CheckPaint(0,STEP);
 
 // For classifier:
 
@@ -90,12 +92,14 @@ checksfc :: CheckPaint(0,STEP);
 //painted and encapsulated by ARP querier based on its destination address;
 //else to 1 output and to loadbalancer paint check and encapsulated by ARP querier based
 //on its destination address.
-c[2] -> StripIPHeader() -> CheckIPHeader() -> checkchain;
+c[2] -> Print("IN") -> Strip(14) -> CheckIPHeader() -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
+	-> webFilter
+	-> UDPIPEncap(sfc:ip,1, sff,1) -> Print("OUT") -> [0]arpq;
 
-checkchain[0] -> checksfc;
-checkchain[1] -> Discard;
+//checkchain[0] -> checksfc;
+//checkchain[1] -> Discard;
 
-checksfc[0] -> Strip(14) -> CheckIPHeader()
-            -> webFilter
-            -> IPEncap(4, sfc:ip, sff) -> Paint(1,CHAIN) -> Paint(1,STEP) -> [0]arpq;
-checksfc[1] -> [0]arpq;
+//checksfc[0] -> StripIPHeader() -> CheckIPHeader()
+  //          -> webFilter
+    //        -> IPEncap(4, sfc:ip, sff) -> Paint(1,CHAIN) -> Paint(1,STEP) -> [0]arpq;
+//checksfc[1] -> IPFragmenter(1436) -> [0]arpq;

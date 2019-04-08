@@ -21,7 +21,7 @@ AddressInfo(sfc    10.0.3.107    10.0.3.0/24    FA:16:3E:F9:A4:9C,
 src :: FromDevice($IFLB);
 
 //outcoming packets
-sink :: Queue(1024) -> ToDevice($IFLB);
+sink :: ARPPrint() -> Queue(1024) -> ToDevice($IFLB);
 
 // click router packet classifier
 c :: Classifier(
@@ -91,8 +91,8 @@ rewriter :: IPRewriter(ws_mapper);
 //IP PACKETS
 
 //checkpaint from classifier
-checkchain :: CheckPaint(1,CHAIN);
-checksfc :: CheckPaint(1,STEP);
+//checkchain :: CheckPaint(1,CHAIN);
+//checksfc :: CheckPaint(1,STEP);
 
 // For classifier:
 //if the packet has a classifier paint it is redirect to 0 output,
@@ -102,16 +102,17 @@ checksfc :: CheckPaint(1,STEP);
 //painted and encapsulated by ARP querier based on its destination address;
 //else to 1 output and to loadbalancer paint check and encapsulated by ARP querier based
 //on its destination address.
-c[2] -> StripIPHeader() -> CheckIPHeader() -> checkchain;
+c[2] -> Print("IN") -> Strip(14) -> CheckIPHeader() -> StripIPHeader() -> Strip(8) -> CheckIPHeader()
+	-> IPPrint(CONTENTS ASCII) -> [0]rewriter;
 
-checkchain[0] -> checksfc;
-checkchain[1] -> Discard;
+//checkchain[0] -> checksfc;
+//checkchain[1] -> Discard;
 
-checksfc[0] -> Strip(14)
-            -> CheckIPHeader()
-            -> [0]rewriter;
+//checksfc[0] -> StripIPHeader()
+//            -> CheckIPHeader()
+//            -> [0]rewriter;
 
-checksfc[1] -> [0]arpq;
+//checksfc[1] -> IPFragmenter(1436) -> [0]arpq;
 
 //For both rewriters:
 // As I sad above, here are incomming and outgoing NAT-ed packets. They have
@@ -120,9 +121,10 @@ checksfc[1] -> [0]arpq;
 
 
 rewriter[0] -> SetTCPChecksum()
-            -> IPEncap(4, sfc:ip, sff) -> Paint(1,CHAIN) -> Paint(2,STEP)
+	    -> UDPIPEncap(sfc:ip,1, sff,2) -> Print("OUT")
             -> [0]arpq;
 
-rewriter[1] -> SetTCPChecksum()
-            -> SetIPAddress(sfc:ip)
-            -> [0]arpq;
+rewriter[1] -> Print("OUT1") -> Discard;
+//SetTCPChecksum()
+//            -> SetIPAddress(sfc:ip)
+//            -> IPFragmenter(1436) -> [0]arpq;
