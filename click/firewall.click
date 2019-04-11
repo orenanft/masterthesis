@@ -55,7 +55,7 @@ c[1] -> [1]arpq;
 c[3] -> Discard;
 
 // Firewall application accepting only http/https requests to floatingip.
-webFilter :: IPFilter(allow icmp,
+sfcFilter :: IPFilter(allow icmp,
                       //allow dst floatingip && dst port 80 && dst port 443,
                       allow dst port 80 || dst port 443,
                       drop all)
@@ -86,16 +86,38 @@ webFilter :: IPFilter(allow icmp,
 
 // For classifier:
 
+sfcclassifier :: IPClassifier(
+             udp && src port 1, //chain1
+             udp && src port 2, //chain2
+             udp && src port 3, //chain3
+             udp && src port 4, //chain4
+             -);
+
 //if the packet has a classifier paint it is redirect to 0 output,
 // Ethernet packets are stripped and comes to IP packets, that has its headers
 //checked, filtered by incomming firewall; encapsulated (source:sff,dest:loadbalancer),
 //painted and encapsulated by ARP querier based on its destination address;
 //else to 1 output and to loadbalancer paint check and encapsulated by ARP querier based
 //on its destination address.
-c[2] -> Print("IN") -> Strip(14) -> CheckIPHeader() -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
-	-> webFilter
-	-> UDPIPEncap(sfc:ip,1, sff,1) -> Print("OUT") -> [0]arpq;
+c[2] -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
 
+sfcclassifier[0] -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
+	-> sfcFilter
+	-> UDPIPEncap(sfc:ip,1, sff,1) -> [0]arpq;
+
+sfcclassifier[1] -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
+  	-> sfcFilter
+  	-> UDPIPEncap(sfc:ip,2, sff,1) -> [0]arpq;
+
+sfcclassifier[2] -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
+  	-> sfcFilter
+  	-> UDPIPEncap(sfc:ip,3, sff,1) -> [0]arpq;
+
+sfcclassifier[3] -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
+  	-> sfcFilter
+  	-> UDPIPEncap(sfc:ip,4, sff,1) -> [0]arpq;
+
+sfcclassifier[3] -> Discard;
 //checkchain[0] -> checksfc;
 //checkchain[1] -> Discard;
 

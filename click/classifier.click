@@ -16,6 +16,9 @@ AddressInfo(net0    10.0.0.5    10.0.0.0/24    FA:16:3E:2C:5C:46,
             sfc     10.0.3.108  10.0.3.0/24    FA:16:3E:4C:AA:C7,
             net1    10.0.1.121  10.0.1.0/24    FA:16:3E:87:17:6B,
             client  10.0.5.3  10.0.5.0/24      FA:16:3E:77:A3:34,
+            cchain1 10.0.5.20,
+            cchain2 10.0.5.21,
+            cchain3 10.0.5.22,
             sff     10.0.3.106,
 	          public  10.0.2.156  10.0.2.0/24,
             ws1    10.0.1.102,
@@ -95,14 +98,14 @@ c4[3] -> Discard;
 //The last output is for all other IP packets.
 sfcclassifier :: IPClassifier(//dst host public:ip,
              dst host client:ip,
-	     dst net net0,
+             dst host cchain1:ip,
+             dst host cchain2:ip,
+             dst host cchain3:ip,
+	           dst net net0,
              dst net sfc,
              dst net net1,
-             //src host ws1 && src net != net0 && src net != sfc && src net != net1,
-             //src host ws2 && src net != net0 && src net != sfc && src net != net1,
              src host ws1 && dst net client,
              src host ws2 && dst net client,
-             //dst net client,
              -);
 
 //traffic from net0, net1 and sfc will go to sfcclassifier
@@ -117,7 +120,6 @@ c4[2] -> Strip(14) -> CheckIPHeader() -> [0]sfcclassifier;
 //The ip packet will be encapsulated and the header (source: classifier ip, dest: sff ip)
 //Finally the paint annotation will indicate the chain and the step(third element is unused)
 
-//define($ip client:ip);
 rewriter :: IPRewriter(pattern client:ip - - - 0 1);
 
 checklen1 :: CheckLength(1400);
@@ -127,30 +129,27 @@ checklen4 :: CheckLength(1400);
 checklensfc :: CheckLength(1400);
 
 checklen1[0] -> [0]arpq1;
-checklen1[1] -> Print("LARGE") -> IPFragmenter(1400) -> [0]arpq1;
+checklen1[1] -> IPFragmenter(1400) -> [0]arpq1;
 
-checklen2[0] -> IPPrint(CONTENTS ASCII) -> [0]arpq2;
-checklen2[1] -> Print("LARGE") -> IPFragmenter(1400) -> [0]arpq2;
+checklen2[0] -> [0]arpq2;
+checklen2[1] -> IPFragmenter(1400) -> [0]arpq2;
 
 checklen3[0] -> [0]arpq3;
-checklen3[1] -> Print("LARGE") -> IPFragmenter(1400) -> [0]arpq3;
+checklen3[1] -> IPFragmenter(1400) -> [0]arpq3;
 
-checklen4[0] -> IPPrint(CONTENTS ASCII) -> Print("out") -> [0]arpq4;
-checklen4[1] -> Print("LARGE") -> IPFragmenter(1400) -> [0]arpq4;
+checklen4[0] -> [0]arpq4;
+checklen4[1] -> IPFragmenter(1400) -> [0]arpq4;
 
-checklensfc[0] -> IPPrint(CONTENTS ASCII) -> [0]arpq2;
-checklensfc[1] -> Print("LARGE") -> IPFragmenter(1400) -> [0]arpq2;
-
-sfcclassifier[0] ->  UDPIPEncap(sfc:ip,1,sff,0) -> checklensfc;
-sfcclassifier[1] ->  Print("1") -> checklen1;
-sfcclassifier[2] ->  Print("2") -> checklen2;
-sfcclassifier[3] ->  Print("3") -> checklen3;
-//sfcclassifier[4] -> SetTCPChecksum() -> SetIPAddress(public:ip) -> checklen1;
-//sfcclassifier[4] ->  Print("4") -> IPPrint(CONTENTS ASCII) -> Print("in") -> IPGWOptions(client:ip) -> FixIPSrc(client:ip) -> checklen4;
-sfcclassifier[4] ->  Print("4") -> IPPrint(CONTENTS ASCII) -> Print("in") -> [0]rewriter;
-sfcclassifier[5] ->  Print("5") -> IPPrint(CONTENTS ASCII) -> Print("in") -> [0]rewriter;
-//sfcclassifier[6] -> Print("6") -> checklen4;
-sfcclassifier[6] ->  Print("7") -> Discard;
+sfcclassifier[0] -> UDPIPEncap(sfc:ip,1,sff,0) -> checklen2;
+sfcclassifier[1] -> UDPIPEncap(sfc:ip,2,sff,0) -> checklen2;
+sfcclassifier[2] -> UDPIPEncap(sfc:ip,3,sff,0) -> checklen2;
+sfcclassifier[3] -> UDPIPEncap(sfc:ip,4,sff,0) -> checklen2;
+sfcclassifier[4] -> checklen1;
+sfcclassifier[5] -> checklen2;
+sfcclassifier[6] -> checklen3;
+sfcclassifier[7] -> [0]rewriter;
+sfcclassifier[8] -> [0]rewriter;
+sfcclassifier[9] -> Discard;
 
 rewriter[0] -> SetTCPChecksum() -> checklen4;
 rewriter[1] -> Discard;

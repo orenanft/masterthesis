@@ -102,9 +102,17 @@ rewriter :: IPRewriter(ws_mapper);
 //painted and encapsulated by ARP querier based on its destination address;
 //else to 1 output and to loadbalancer paint check and encapsulated by ARP querier based
 //on its destination address.
-c[2] -> Print("IN") -> Strip(14) -> CheckIPHeader() -> StripIPHeader() -> Strip(8) -> CheckIPHeader()
-	-> IPPrint(CONTENTS ASCII) -> [0]rewriter;
 
+sfcclassifier :: IPClassifier(
+             udp && src port 1, //chain2
+             -);
+
+c[2] -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
+
+sfcclassifier[0] -> StripIPHeader() -> Strip(8) -> CheckIPHeader()
+	-> [0]rewriter;
+
+sfcclassifier[0] -> Discard;
 //checkchain[0] -> checksfc;
 //checkchain[1] -> Discard;
 

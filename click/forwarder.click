@@ -14,6 +14,7 @@ AnnotationInfo(STEP 17 1);
 AddressInfo(sfc        10.0.3.106  10.0.3.0/24    FA:16:3E:C4:00:94,
             firewall   10.0.3.128,
             loadbalancer    10.0.3.107,
+            lbsrcip 10.0.3.107,
             router     10.0.3.108
 );
 
@@ -49,13 +50,13 @@ arpq :: ARPQuerier(sfc) -> sink;
 //ARP replies
 arpr :: ARPResponder(sfc) -> sink;
 
-c[0] -> Print("C0") -> arpr;
+c[0] -> arpr;
 
 // Delivering ARP responses to the ARP queriers.
-c[1] -> Print("C1") -> [1]arpq;
+c[1] -> [1]arpq;
 
 // Other protocol types inside ethernet frames. They are dropped/discarded.
-c[3] -> Print("C3") -> Discard;
+c[3] -> Discard;
 
 
 //IP PACKETS
@@ -67,21 +68,39 @@ c[3] -> Print("C3") -> Discard;
 //checklb :: CheckPaint(2,STEP);
 
 sfcclassifier :: IPClassifier(
-             udp && src port 1 && dst port 0, //classifier para o firewall
+             udp && src port 1 && dst port 0, //classifier to firewall
              udp && src port 1 && dst port 1, //firewall to lb
              udp && src port 1 && dst port 2, //lb to ws
+             udp && src port 2 && dst port 0, //classifier to firewall
+             udp && src port 2 && dst port 1, //firewall to lb-srcip
+             udp && src port 2 && dst port 2, //lb-srcip to ws
+             udp && src port 3 && dst port 0, ///classifier to firewall
+             udp && src port 3 && dst port 1, //firewall to server
+             udp && src port 4 && dst port 0, //classifier para o firewall
+             udp && src port 4 && dst port 1, //firewall to server
              -);
 
 rt :: RadixIPLookup(10.0.1.0/24 router 0)
 
 
 //ip traffic is stripped, checked and sent to check it has classifier paint
-c[2] -> Print("arrived") -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
+c[2] -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
 
-sfcclassifier[0] -> Print("STEP1") -> [0]arpq;
-sfcclassifier[1] -> Print("STEP2") -> [0]arpq;
-sfcclassifier[2] -> Print("OUT") -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> IPPrint -> rt -> [0]arpq;
-sfcclassifier[3] -> Discard;
+sfcclassifier[0] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,firewall,0) -> [0]arpq;
+sfcclassifier[1] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,loadbalancer,0) -> [0]arpq;
+sfcclassifier[2] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> rt -> [0]arpq;
+
+sfcclassifier[3] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,firewall,0) -> [0]arpq;
+sfcclassifier[4] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,lbsrcip,0) -> [0]arpq;
+sfcclassifier[5] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> rt -> [0]arpq;
+
+sfcclassifier[6] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,firewall,0) -> [0]arpq;
+sfcclassifier[7] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> rt -> [0]arpq;
+
+sfcclassifier[8] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,firewall,0) -> [0]arpq;
+sfcclassifier[9] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> rt -> [0]arpq;
+
+sfcclassifier[10] -> Discard;
 
 //checkchain[0] -> Print("CHAIN1") -> checkclassifier;
 //checkchain[1] -> Print("DISCARD") -> Discard;
