@@ -5,16 +5,13 @@
 // Author: Renan Freire Tavares
 
 define($IFSFC ens7);
-//sets annotations chain ad step for our work
-AnnotationInfo(CHAIN 16 1);
-AnnotationInfo(STEP 17 1);
 
 // IPs, networks e MACs.
 //          name     ip             ipnet               mac
 AddressInfo(sfc        10.0.3.106  10.0.3.0/24    FA:16:3E:C4:00:94,
             firewall   10.0.3.128,
             loadbalancer    10.0.3.107,
-            lbsrcip 10.0.3.107,
+            lbsrcip     10.0.3.102,
             router     10.0.3.108
 );
 
@@ -80,25 +77,23 @@ sfcclassifier :: IPClassifier(
              udp && src port 4 && dst port 1, //firewall to server
              -);
 
-rt :: RadixIPLookup(10.0.1.0/24 router 0)
-
 
 //ip traffic is stripped, checked and sent to check it has classifier paint
 c[2] -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
 
-sfcclassifier[0] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,firewall,0) -> [0]arpq;
-sfcclassifier[1] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,loadbalancer,0) -> [0]arpq;
-sfcclassifier[2] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> rt -> [0]arpq;
+sfcclassifier[0] -> Print("C1 - IN") -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,firewall,0) -> [0]arpq;
+sfcclassifier[1] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,loadbalancer,1) -> [0]arpq;
+sfcclassifier[2] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> RadixIPLookup(10.0.1.0/24 router 0) -> Print("C1- OUT") -> [0]arpq;
 
-sfcclassifier[3] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,firewall,0) -> [0]arpq;
-sfcclassifier[4] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,lbsrcip,0) -> [0]arpq;
-sfcclassifier[5] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> rt -> [0]arpq;
+sfcclassifier[3] -> Print("C2 - IN") -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,2,firewall,0) -> [0]arpq;
+sfcclassifier[4] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,2,lbsrcip,1) -> [0]arpq;
+sfcclassifier[5] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> RadixIPLookup(10.0.1.0/24 router 0) -> Print("C2- OUT") -> [0]arpq;
 
-sfcclassifier[6] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,firewall,0) -> [0]arpq;
-sfcclassifier[7] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> rt -> [0]arpq;
+sfcclassifier[6] -> Print("C3 - IN") -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,3,firewall,0) -> [0]arpq;
+sfcclassifier[7] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> RadixIPLookup(10.0.1.0/24 router 0) -> Print("C3- OUT") -> [0]arpq;
 
-sfcclassifier[8] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,1,firewall,0) -> [0]arpq;
-sfcclassifier[9] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> rt -> [0]arpq;
+sfcclassifier[8] -> Print("C4 - IN") -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> UDPIPEncap(sfc:ip,4,firewall,0) -> [0]arpq;
+sfcclassifier[9] -> StripIPHeader() -> Strip(8) -> CheckIPHeader() -> RadixIPLookup(10.0.1.0/24 router 0) -> Print("C4- OUT") -> [0]arpq;
 
 sfcclassifier[10] -> Discard;
 

@@ -6,9 +6,6 @@ define($IFNET0 ens6);
 define($IFSFC ens7);
 define($IFNET1 ens8);
 define($IFCLIENT ens9);
-//sets annotations chain ad step for our work
-AnnotationInfo(CHAIN 16 1);
-AnnotationInfo(STEP 17 1);
 
 // IPs, networks e MACs.
 //          name     ip             ipnet               mac
@@ -16,9 +13,9 @@ AddressInfo(net0    10.0.0.5    10.0.0.0/24    FA:16:3E:2C:5C:46,
             sfc     10.0.3.108  10.0.3.0/24    FA:16:3E:4C:AA:C7,
             net1    10.0.1.121  10.0.1.0/24    FA:16:3E:87:17:6B,
             client  10.0.5.3  10.0.5.0/24      FA:16:3E:77:A3:34,
-            cchain1 10.0.5.20,
-            cchain2 10.0.5.21,
-            cchain3 10.0.5.22,
+            cchain2 10.0.5.20,
+            cchain3 10.0.5.21,
+            cchain4 10.0.5.22,
             sff     10.0.3.106,
 	          public  10.0.2.156  10.0.2.0/24,
             ws1    10.0.1.102,
@@ -97,15 +94,17 @@ c4[3] -> Discard;
 //and the third output is for net1 packets.
 //The last output is for all other IP packets.
 sfcclassifier :: IPClassifier(//dst host public:ip,
-             dst host client:ip,
-             dst host cchain1:ip,
-             dst host cchain2:ip,
-             dst host cchain3:ip,
+             src net != net1 && dst host client:ip,
+             src net != net1 && dst host cchain2:ip,
+             src net != net1 && dst host cchain3:ip,
+             src net != net1 && dst host cchain4:ip,
 	           dst net net0,
              dst net sfc,
              dst net net1,
-             src host ws1 && dst net client,
-             src host ws2 && dst net client,
+             (src host ws1 || src host ws2) && dst host client:ip,
+             (src host ws1 || src host ws2) && dst host cchain2:ip,
+             (src host ws1 || src host ws2) && dst host cchain3:ip,
+             (src host ws1 || src host ws2) && dst host cchain4:ip,
              -);
 
 //traffic from net0, net1 and sfc will go to sfcclassifier
@@ -120,13 +119,20 @@ c4[2] -> Strip(14) -> CheckIPHeader() -> [0]sfcclassifier;
 //The ip packet will be encapsulated and the header (source: classifier ip, dest: sff ip)
 //Finally the paint annotation will indicate the chain and the step(third element is unused)
 
-rewriter :: IPRewriter(pattern client:ip - - - 0 1);
+rewriterChain1IN :: IPRewriter(pattern client:ip - - - 0 1);
+rewriterChain2IN :: IPRewriter(pattern cchain2:ip - - - 0 1);
+rewriterChain3IN :: IPRewriter(pattern cchain3:ip - - - 0 1);
+rewriterChain4IN :: IPRewriter(pattern cchain4:ip - - - 0 1);
+
+rewriterChain1OUT :: IPRewriter(pattern client:ip - - - 0 1);
+rewriterChain2OUT :: IPRewriter(pattern cchain2:ip - - - 0 1);
+rewriterChain3OUT :: IPRewriter(pattern cchain3:ip - - - 0 1);
+rewriterChain4OUT :: IPRewriter(pattern cchain4:ip - - - 0 1);
 
 checklen1 :: CheckLength(1400);
 checklen2 :: CheckLength(1400);
 checklen3 :: CheckLength(1400);
 checklen4 :: CheckLength(1400);
-checklensfc :: CheckLength(1400);
 
 checklen1[0] -> [0]arpq1;
 checklen1[1] -> IPFragmenter(1400) -> [0]arpq1;
@@ -140,16 +146,39 @@ checklen3[1] -> IPFragmenter(1400) -> [0]arpq3;
 checklen4[0] -> [0]arpq4;
 checklen4[1] -> IPFragmenter(1400) -> [0]arpq4;
 
-sfcclassifier[0] -> UDPIPEncap(sfc:ip,1,sff,0) -> checklen2;
-sfcclassifier[1] -> UDPIPEncap(sfc:ip,2,sff,0) -> checklen2;
-sfcclassifier[2] -> UDPIPEncap(sfc:ip,3,sff,0) -> checklen2;
-sfcclassifier[3] -> UDPIPEncap(sfc:ip,4,sff,0) -> checklen2;
+sfcclassifier[0] -> [0]rewriterChain1IN;
+sfcclassifier[1] -> [0]rewriterChain2IN;
+sfcclassifier[2] -> [0]rewriterChain3IN;
+sfcclassifier[3] -> [0]rewriterChain4IN;
 sfcclassifier[4] -> checklen1;
 sfcclassifier[5] -> checklen2;
 sfcclassifier[6] -> checklen3;
-sfcclassifier[7] -> [0]rewriter;
-sfcclassifier[8] -> [0]rewriter;
-sfcclassifier[9] -> Discard;
+sfcclassifier[7] -> [0]rewriterChain1OUT;
+sfcclassifier[8] -> [0]rewriterChain2OUT;
+sfcclassifier[9] -> [0]rewriterChain3OUT;
+sfcclassifier[10] -> [0]rewriterChain4OUT;
+sfcclassifier[11] -> Discard;
 
-rewriter[0] -> SetTCPChecksum() -> checklen4;
-rewriter[1] -> Discard;
+rewriterChain1IN[0] -> UDPIPEncap(sfc:ip,1,sff,0) -> checklen2;
+rewriterChain1IN[1] -> SetTCPChecksum() -> checklen4;
+
+rewriterChain2IN[0] -> UDPIPEncap(sfc:ip,2,sff,0) -> checklen2;
+rewriterChain2IN[1] -> SetTCPChecksum() -> checklen4;
+
+rewriterChain3IN[0] -> UDPIPEncap(sfc:ip,3,sff,0) -> checklen2;
+rewriterChain3IN[1] -> SetTCPChecksum() -> checklen4;
+
+rewriterChain4IN[0] -> UDPIPEncap(sfc:ip,4,sff,0) -> checklen2;
+rewriterChain4IN[1] -> SetTCPChecksum() -> checklen4;
+
+rewriterChain1OUT[0] -> [0]rewriterChain1IN;
+rewriterChain1OUT[1] -> Discard;
+
+rewriterChain2OUT[0] -> [0]rewriterChain2IN;
+rewriterChain2OUT[1] -> Discard;
+
+rewriterChain3OUT[0] -> [0]rewriterChain3IN;
+rewriterChain3OUT[1] -> Discard;
+
+rewriterChain4OUT[0] -> [0]rewriterChain4IN;
+rewriterChain4OUT[1] -> Discard;

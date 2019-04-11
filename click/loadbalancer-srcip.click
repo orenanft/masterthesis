@@ -3,14 +3,12 @@
 // Author: Renan Freire Tavares
 //Based on Felipe Belsholff work available in https://github.com/belsholff/undergraduate-thesis/blob/master/clickOS/LoadBalancer
 
-define($IFLB ens3);
-//sets annotations chain ad step for our work
-AnnotationInfo(CHAIN 16 1);
-AnnotationInfo(STEP 17 1);
+define($IFLB ens6);
+
 
 // Organizing IPs, networks and MACs from this MicroVM. Or tagging known hosts.
 //          name     ip             ipnet               mac
-AddressInfo(sfc    10.0.3.107    10.0.3.0/24    FA:16:3E:F9:A4:9C,
+AddressInfo(sfc         10.0.3.102    10.0.3.0/24    FA:16:3E:D7:EF:B2,
             ws1    10.0.1.102,
             ws2    10.0.1.106,
             sff    10.0.3.106,
@@ -69,7 +67,7 @@ c[3] -> Discard;
 // This mapping is used inside the IPRewriter element below.
 // More detailed documentation about rules and this integration here:
 //https://github.com/kohler/click/wiki/IPRewriter
-ws_mappers :: SourceIPHashMapper(129 0xbadbeef,
+ws_mapper :: SourceIPHashMapper(129 0xbadbeef,
                                  - - ws1 - 0 1 4055,
                                  - - ws2 - 0 1 80147
 );
@@ -108,7 +106,7 @@ sfcclassifier :: IPClassifier(
              udp && src port 2, //chain2
              -);
 
-c[2] -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
+c[2] -> Print("IN") -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
 
 sfcclassifier[0] -> StripIPHeader() -> Strip(8) -> CheckIPHeader()
 	-> [0]rewriter;
@@ -130,10 +128,10 @@ sfcclassifier[1] -> Discard;
 
 
 rewriter[0] -> SetTCPChecksum()
-	    -> UDPIPEncap(sfc:ip,1, sff,2) -> Print("OUT")
+	    -> UDPIPEncap(sfc:ip,2, sff,2) -> Print("OUT")
             -> [0]arpq;
 
-rewriter[1] -> Print("OUT1") -> Discard;
+rewriter[1] -> Discard;
 //SetTCPChecksum()
 //            -> SetIPAddress(sfc:ip)
 //            -> IPFragmenter(1436) -> [0]arpq;

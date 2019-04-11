@@ -3,9 +3,6 @@
 //Based on Felipe Belsholff work available in https://github.com/belsholff/undergraduate-thesis/blob/master/clickOS/LoadBalancer;
 
 define($IFFRW ens3);
-//sets annotations chain ad step for our work
-AnnotationInfo(CHAIN 16 1);
-AnnotationInfo(STEP 17 1);
 
 // Organizing IPs, networks and MACs from this MicroVM. Or tagging known hosts.
 //          name             ip           ipnet              mac
@@ -55,7 +52,22 @@ c[1] -> [1]arpq;
 c[3] -> Discard;
 
 // Firewall application accepting only http/https requests to floatingip.
-sfcFilter :: IPFilter(allow icmp,
+sfcFilterChain1 :: IPFilter(allow icmp,
+                      //allow dst floatingip && dst port 80 && dst port 443,
+                      allow dst port 80 || dst port 443,
+                      drop all)
+
+sfcFilterChain2 :: IPFilter(allow icmp,
+                      //allow dst floatingip && dst port 80 && dst port 443,
+                      allow dst port 80 || dst port 443,
+                      drop all)
+
+sfcFilterChain3 :: IPFilter(allow icmp,
+                      //allow dst floatingip && dst port 80 && dst port 443,
+                      allow dst port 80 || dst port 443,
+                      drop all)
+
+sfcFilterChain4 :: IPFilter(allow icmp,
                       //allow dst floatingip && dst port 80 && dst port 443,
                       allow dst port 80 || dst port 443,
                       drop all)
@@ -99,25 +111,25 @@ sfcclassifier :: IPClassifier(
 //painted and encapsulated by ARP querier based on its destination address;
 //else to 1 output and to loadbalancer paint check and encapsulated by ARP querier based
 //on its destination address.
-c[2] -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
+c[2] -> Print("IN") -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
 
 sfcclassifier[0] -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
-	-> sfcFilter
-	-> UDPIPEncap(sfc:ip,1, sff,1) -> [0]arpq;
+	-> sfcFilterChain1
+	-> UDPIPEncap(sfc:ip,1, sff,1) -> Print("OUT") -> [0]arpq;
 
 sfcclassifier[1] -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
-  	-> sfcFilter
-  	-> UDPIPEncap(sfc:ip,2, sff,1) -> [0]arpq;
+  	-> sfcFilterChain2
+  	-> UDPIPEncap(sfc:ip,2, sff,1) -> Print("OUT") -> [0]arpq;
 
 sfcclassifier[2] -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
-  	-> sfcFilter
-  	-> UDPIPEncap(sfc:ip,3, sff,1) -> [0]arpq;
+  	-> sfcFilterChain3
+  	-> UDPIPEncap(sfc:ip,3, sff,1) -> Print("OUT") -> [0]arpq;
 
 sfcclassifier[3] -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
-  	-> sfcFilter
-  	-> UDPIPEncap(sfc:ip,4, sff,1) -> [0]arpq;
+  	-> sfcFilterChain4
+  	-> UDPIPEncap(sfc:ip,4, sff,1) -> Print("OUT") -> [0]arpq;
 
-sfcclassifier[3] -> Discard;
+sfcclassifier[4] -> Discard;
 //checkchain[0] -> checksfc;
 //checkchain[1] -> Discard;
 

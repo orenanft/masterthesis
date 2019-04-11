@@ -4,9 +4,6 @@
 //Based on Felipe Belsholff work available in https://github.com/belsholff/undergraduate-thesis/blob/master/clickOS/LoadBalancer
 
 define($IFLB ens3);
-//sets annotations chain ad step for our work
-AnnotationInfo(CHAIN 16 1);
-AnnotationInfo(STEP 17 1);
 
 // Organizing IPs, networks and MACs from this MicroVM. Or tagging known hosts.
 //          name     ip             ipnet               mac
@@ -107,12 +104,12 @@ sfcclassifier :: IPClassifier(
              udp && src port 1, //chain2
              -);
 
-c[2] -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
+c[2] -> Print("IN") -> Strip(14) -> CheckIPHeader() -> sfcclassifier;
 
 sfcclassifier[0] -> StripIPHeader() -> Strip(8) -> CheckIPHeader()
 	-> [0]rewriter;
 
-sfcclassifier[0] -> Discard;
+sfcclassifier[1] -> Discard;
 //checkchain[0] -> checksfc;
 //checkchain[1] -> Discard;
 
@@ -132,7 +129,7 @@ rewriter[0] -> SetTCPChecksum()
 	    -> UDPIPEncap(sfc:ip,1, sff,2) -> Print("OUT")
             -> [0]arpq;
 
-rewriter[1] -> Print("OUT1") -> Discard;
+rewriter[1] -> Discard;
 //SetTCPChecksum()
 //            -> SetIPAddress(sfc:ip)
 //            -> IPFragmenter(1436) -> [0]arpq;
