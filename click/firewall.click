@@ -69,7 +69,7 @@ sfcFilterChain3 :: IPFilter(allow icmp,
 
 sfcFilterChain4 :: IPFilter(allow icmp,
                       //allow dst floatingip && dst port 80 && dst port 443,
-                      allow dst port 80 || dst port 443,
+                      allow dst port 5201,
                       drop all)
 
 // Firewall application accepting only http responses (through dynamic ports)

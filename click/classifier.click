@@ -103,8 +103,8 @@ sfcclassifier :: IPClassifier(//dst host public:ip,
              dst net net1,
              (src host ws1 || src host ws2) && dst host client:ip,
              (src host ws1 || src host ws2) && dst host cchain2:ip,
-             (src host ws1 || src host ws2) && dst host cchain3:ip,
-             (src host ws1 || src host ws2) && dst host cchain4:ip,
+             src host ws1 && dst net client,
+             src host ws2 && dst net client,
              -);
 
 //traffic from net0, net1 and sfc will go to sfcclassifier
@@ -121,13 +121,11 @@ c4[2] -> Strip(14) -> CheckIPHeader() -> [0]sfcclassifier;
 
 rewriterChain1IN :: IPRewriter(pattern client:ip - - - 0 1);
 rewriterChain2IN :: IPRewriter(pattern cchain2:ip - - - 0 1);
-rewriterChain3IN :: IPRewriter(pattern cchain3:ip - - - 0 1);
-rewriterChain4IN :: IPRewriter(pattern cchain4:ip - - - 0 1);
+rewriterChain3 :: IPRewriter(pattern - - ws1 - 0 1);
+rewriterChain4 :: IPRewriter(pattern - - ws2 - 0 1);
 
 rewriterChain1OUT :: IPRewriter(pattern client:ip - - - 0 1);
 rewriterChain2OUT :: IPRewriter(pattern cchain2:ip - - - 0 1);
-rewriterChain3OUT :: IPRewriter(pattern cchain3:ip - - - 0 1);
-rewriterChain4OUT :: IPRewriter(pattern cchain4:ip - - - 0 1);
 
 checklen1 :: CheckLength(1400);
 checklen2 :: CheckLength(1400);
@@ -148,15 +146,15 @@ checklen4[1] -> IPFragmenter(1400) -> [0]arpq4;
 
 sfcclassifier[0] -> [0]rewriterChain1IN;
 sfcclassifier[1] -> [0]rewriterChain2IN;
-sfcclassifier[2] -> [0]rewriterChain3IN;
-sfcclassifier[3] -> [0]rewriterChain4IN;
+sfcclassifier[2] -> [0]rewriterChain3;
+sfcclassifier[3] -> [0]rewriterChain4;
 sfcclassifier[4] -> checklen1;
 sfcclassifier[5] -> checklen2;
 sfcclassifier[6] -> checklen3;
 sfcclassifier[7] -> [0]rewriterChain1OUT;
 sfcclassifier[8] -> [0]rewriterChain2OUT;
-sfcclassifier[9] -> [0]rewriterChain3OUT;
-sfcclassifier[10] -> [0]rewriterChain4OUT;
+sfcclassifier[9] -> [0]rewriterChain3;
+sfcclassifier[10] -> [0]rewriterChain4;
 sfcclassifier[11] -> Discard;
 
 rewriterChain1IN[0] -> UDPIPEncap(sfc:ip,1,sff,0) -> checklen2;
@@ -165,20 +163,14 @@ rewriterChain1IN[1] -> SetTCPChecksum() -> checklen4;
 rewriterChain2IN[0] -> UDPIPEncap(sfc:ip,2,sff,0) -> checklen2;
 rewriterChain2IN[1] -> SetTCPChecksum() -> checklen4;
 
-rewriterChain3IN[0] -> UDPIPEncap(sfc:ip,3,sff,0) -> checklen2;
-rewriterChain3IN[1] -> SetTCPChecksum() -> checklen4;
+rewriterChain3[0] -> UDPIPEncap(sfc:ip,3,sff,0) -> checklen2;
+rewriterChain3[1] -> SetTCPChecksum() -> checklen4;
 
-rewriterChain4IN[0] -> UDPIPEncap(sfc:ip,4,sff,0) -> checklen2;
-rewriterChain4IN[1] -> SetTCPChecksum() -> checklen4;
+rewriterChain4[0] -> UDPIPEncap(sfc:ip,4,sff,0) -> checklen2;
+rewriterChain4[1] -> SetTCPChecksum() -> checklen4;
 
 rewriterChain1OUT[0] -> [0]rewriterChain1IN;
 rewriterChain1OUT[1] -> Discard;
 
 rewriterChain2OUT[0] -> [0]rewriterChain2IN;
 rewriterChain2OUT[1] -> Discard;
-
-rewriterChain3OUT[0] -> [0]rewriterChain3IN;
-rewriterChain3OUT[1] -> Discard;
-
-rewriterChain4OUT[0] -> [0]rewriterChain4IN;
-rewriterChain4OUT[1] -> Discard;
