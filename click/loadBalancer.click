@@ -3,7 +3,7 @@
 // Author: Renan Freire Tavares
 //Based on Felipe Belsholff work available in https://github.com/belsholff/undergraduate-thesis/blob/master/clickOS/LoadBalancer
 
-define($IFLB ens3);
+//define($IFLB 3); //pci nic
 
 // Organizing IPs, networks and MACs from this MicroVM. Or tagging known hosts.
 //          name     ip             ipnet               mac
@@ -15,10 +15,10 @@ AddressInfo(sfc    10.0.3.107    10.0.3.0/24    FA:16:3E:F9:A4:9C,
 );
 
 //incoming packets
-src :: FromDevice($IFLB);
+src :: FromDPDKDevice($IFLB);
 
 //outcoming packets
-sink :: ARPPrint() -> Queue(1024) -> ToDevice($IFLB);
+sink :: ARPPrint() -> ToDPDKDevice($IFLB);
 
 // click router packet classifier
 c :: Classifier(

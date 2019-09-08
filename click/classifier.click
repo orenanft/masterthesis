@@ -2,10 +2,10 @@
 //as a gateway between 10.0.0.0/24, 10.0.3.0/24 and 10.0.1.0/24.
 // Author: Renan Freire Tavares
 
-define($IFNET0 ens6);
-define($IFSFC ens7);
-define($IFNET1 ens8);
-define($IFCLIENT ens9);
+//define($IFNET0 3); //pci nic
+//define($IFSFC 3); //pci nic
+//define($IFNET1 3); //pci nic
+//define($IFCLIENT 3); //pci nic
 
 // IPs, networks e MACs.
 //          name     ip             ipnet               mac
@@ -23,16 +23,16 @@ AddressInfo(net0    10.0.0.5    10.0.0.0/24    FA:16:3E:2C:5C:46,
 );
 
 //incoming packets
-src1 :: FromDevice($IFNET0);
-src2 :: FromDevice($IFSFC);
-src3 :: FromDevice($IFNET1);
-src4 :: FromDevice($IFCLIENT);
+src1 :: FromDPDKDevice($IFNET0);
+src2 :: FromDPDKDevice($IFSFC);
+src3 :: FromDPDKDevice($IFNET1);
+src4 :: FromDPDKDevice($IFCLIENT);
 
 //outcoming packets
-sink1   :: ARPPrint() -> Queue(1024) -> ToDevice($IFNET0);
-sink2   :: ARPPrint() -> Queue(1024) -> ToDevice($IFSFC);
-sink3   :: ARPPrint() -> Queue(1024) -> ToDevice($IFNET1);
-sink4   :: ARPPrint() -> Queue(1024) -> ToDevice($IFCLIENT);
+sink1   :: ARPPrint() -> ToDPDKDevice($IFNET0);
+sink2   :: ARPPrint() -> ToDPDKDevice($IFSFC);
+sink3   :: ARPPrint() -> ToDPDKDevice($IFNET1);
+sink4   :: ARPPrint() -> ToDPDKDevice($IFCLIENT);
 
 // click router packet classifiers
 c1,c2,c3,c4 :: Classifier(
@@ -88,12 +88,20 @@ c4[3] -> Discard;
 
 //IP PACKETS
 
-//Element with four outputs to classify IP packets.
-//The first output is for net0 packets;
-//The second output is for sfc packets;
-//and the third output is for net1 packets.
-//The last output is for all other IP packets.
-sfcclassifier :: IPClassifier(//dst host public:ip,
+//Element with n outputs to classify IP packets.
+//Output 0 is for incoming chain1 packets
+//Output 1 is for incoming chain2 packets
+//Output 2 is for incoming chain3 packets
+//Output 3 is for incoming chain4 packets
+//Output 4 is for net0 packets
+//Output 5 is for sfc packets
+//Output 6 is for net1 packets.
+//Output 7 is for outcoming chain1 packets.
+//Output 8 is for outcoming chain2 packets.
+//Output 9 is for outcoming chain3 packets.
+//Output 10 is for outcoming chain4 packets.
+//Output 11 is for all other IP packets.
+sfcclassifier :: IPClassifier(
              src net != net1 && dst host client:ip,
              src net != net1 && dst host cchain2:ip,
              src net != net1 && dst host cchain3:ip,
@@ -107,7 +115,7 @@ sfcclassifier :: IPClassifier(//dst host public:ip,
              src host ws2 && dst net client,
              -);
 
-//traffic from net0, net1 and sfc will go to sfcclassifier
+//traffic from net0, sfc, net1 and client will go to sfcclassifier
 c1[2] -> Strip(14) -> CheckIPHeader() -> [0]sfcclassifier;
 c2[2] -> Strip(14) -> CheckIPHeader() -> [0]sfcclassifier;
 c3[2] -> Strip(14) -> CheckIPHeader() -> [0]sfcclassifier;

@@ -2,7 +2,7 @@
 // Author: Renan Freire Tavares
 //Based on Felipe Belsholff work available in https://github.com/belsholff/undergraduate-thesis/blob/master/clickOS/LoadBalancer;
 
-define($IFFRW ens3);
+//define($IFFRW 3); //pci nic
 
 // Organizing IPs, networks and MACs from this MicroVM. Or tagging known hosts.
 //          name             ip           ipnet              mac
@@ -12,10 +12,10 @@ AddressInfo(sfc    10.0.3.128    10.0.3.0/24    FA:16:3E:73:B2:BC,
 );
 
 //incoming packets
-src :: FromDevice($IFFRW);
+src :: FromDPDKDevice($IFFRW);
 
 //outcoming packets
-sink :: ARPPrint() -> Queue(1024) -> ToDevice($IFFRW);
+sink :: ARPPrint() -> ToDPDKDevice($IFFRW);
 
 // click router packet classifier
 c :: Classifier(
@@ -72,23 +72,6 @@ sfcFilterChain4 :: IPFilter(allow icmp,
                       allow dst port 5201,
                       drop all)
 
-// Firewall application accepting only http responses (through dynamic ports)
-//to entire net0 from natlb.
-// OSes dynamic ports list:
-//Linux     - 32768-61000
-//WinVista  - \/
-//Win7      - \/
-//WinSrv08  - \/
-//FreeBSD4.6- \/
-//IANA      - 49152-65535
-//BSD       - \/
-//WindowsXP - \/
-//WinSrv03  - 1025-5000
-//Win8      - \/
-//Win8.1    - \/
-//Win10     -  ?
-//webFilterOUT :: IPFilter(allow src natlb && dst net0:ipnet && dst port >= 32768 && dst port <= 61000,
-//                         drop all) //Como fazer para ser stateful?
 
 //IP PACKETS
 
@@ -130,10 +113,3 @@ sfcclassifier[3] -> StripIPHeader() -> Strip(8)-> CheckIPHeader()
   	-> UDPIPEncap(sfc:ip,4, sff,1) -> Print("OUT") -> [0]arpq;
 
 sfcclassifier[4] -> Discard;
-//checkchain[0] -> checksfc;
-//checkchain[1] -> Discard;
-
-//checksfc[0] -> StripIPHeader() -> CheckIPHeader()
-  //          -> webFilter
-    //        -> IPEncap(4, sfc:ip, sff) -> Paint(1,CHAIN) -> Paint(1,STEP) -> [0]arpq;
-//checksfc[1] -> IPFragmenter(1436) -> [0]arpq;

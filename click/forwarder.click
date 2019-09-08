@@ -4,7 +4,7 @@
 //networks, where the entire "public network" are set.
 // Author: Renan Freire Tavares
 
-define($IFSFC ens7);
+//define($IFSFC 3);  //pci nic
 
 // IPs, networks e MACs.
 //          name     ip             ipnet               mac
@@ -16,10 +16,10 @@ AddressInfo(sfc        10.0.3.106  10.0.3.0/24    FA:16:3E:C4:00:94,
 );
 
 //incoming packets
-src :: FromDevice($IFSFC);
+src :: FromDPDKDevice($IFSFC);
 
 //outcoming packets
-sink :: ARPPrint() -> Queue(1024) -> ToDevice($IFSFC);
+sink :: ARPPrint() -> ToDPDKDevice($IFSFC);
 
 // click router packet classifier
 c :: Classifier(
